@@ -9,7 +9,6 @@ import {
   Mic2,
   Sparkles,
   Target,
-  TrendingUp,
   TriangleAlert,
 } from 'lucide-react';
 import {useEffect, useMemo, useState} from 'react';
@@ -484,5 +483,6 @@ export default function Learn(){
           </p>
         </div>
       }
-    </>;
+    </>}
+  </>;
 }
