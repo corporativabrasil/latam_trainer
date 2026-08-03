@@ -1,0 +1,36 @@
+﻿# Segredos
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Node
+node_modules/
+frontend/node_modules/
+frontend/dist/
+
+# Arquivos enviados e dados locais
+uploads/
+storage/
+backend/uploads/
+backend/storage/
+postgres_data/
+
+# Logs e backups
+*.log
+build-frontend.log
+backup-*/
+backup-*
+*.bak
+
+# IDE e sistema
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
