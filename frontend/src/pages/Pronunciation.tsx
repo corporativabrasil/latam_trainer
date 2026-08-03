@@ -213,11 +213,12 @@ export default function Pronunciation(){
 
       await evaluateTranscript(transcript);
     }catch(err:any){
-      setError(
-        err.response?.data?.detail
-        ||err.message
-        ||'Não foi possível transcrever o áudio.',
-      );
+      const detail=err.response?.data?.detail;
+      const message=typeof detail==='string'
+        ? detail
+        : err.message||'Não foi possível transcrever o áudio.';
+
+      setError(message);
     }finally{
       setProcessing(false);
     }

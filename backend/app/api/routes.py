@@ -476,37 +476,26 @@ async def pronunciation_transcribe(
     audio: UploadFile = File(...),
     _: User = Depends(current_user),
 ):
-    allowed_content_types = {
-        "audio/webm",
-        "audio/ogg",
-        "audio/mp4",
-        "audio/mpeg",
-        "audio/wav",
-        "audio/x-wav",
-        "audio/aac",
-        "audio/m4a",
-        "video/webm",
-        "video/mp4",
-    }
-
-    content_type = (audio.content_type or "").lower()
-    if content_type and content_type not in allowed_content_types:
-        raise HTTPException(
-            400,
-            f"Formato de áudio não suportado: {content_type}",
-        )
+    # Navegadores enviam MIME com parâmetros, por exemplo:
+    # audio/webm;codecs=opus. A parte após ";" não deve invalidar o arquivo.
+    raw_content_type = (audio.content_type or "").lower().strip()
+    base_content_type = raw_content_type.split(";", 1)[0].strip()
 
     extension_by_type = {
         "audio/webm": ".webm",
         "video/webm": ".webm",
         "audio/ogg": ".ogg",
+        "application/ogg": ".ogg",
         "audio/mp4": ".mp4",
         "video/mp4": ".mp4",
         "audio/m4a": ".m4a",
+        "audio/x-m4a": ".m4a",
         "audio/mpeg": ".mp3",
+        "audio/mp3": ".mp3",
         "audio/wav": ".wav",
         "audio/x-wav": ".wav",
         "audio/aac": ".aac",
+        "application/octet-stream": ".webm",
     }
 
     original_suffix = Path(audio.filename or "").suffix.lower()
@@ -515,7 +504,7 @@ async def pronunciation_transcribe(
         if original_suffix in {
             ".webm", ".ogg", ".mp4", ".m4a", ".mp3", ".wav", ".aac"
         }
-        else extension_by_type.get(content_type, ".webm")
+        else extension_by_type.get(base_content_type, ".webm")
     )
 
     max_bytes = 20 * 1024 * 1024
@@ -558,7 +547,8 @@ async def pronunciation_transcribe(
 
         return {
             "transcript": transcript,
-            "content_type": content_type,
+            "content_type": raw_content_type,
+            "base_content_type": base_content_type,
         }
     finally:
         await audio.close()
