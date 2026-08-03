@@ -177,7 +177,7 @@ export default function Learn(){
     {error&&<div className="panel">{error}</div>}
 
     {progress&&<>
-      <section
+      <section className="readiness-hero"
         style={{
           display:'grid',
           gridTemplateColumns:'1fr auto',
@@ -249,7 +249,7 @@ export default function Learn(){
         </div>
       </section>
 
-      <div style={{
+      <div className="readiness-metrics" style={{
         display:'grid',
         gridTemplateColumns:'repeat(2,minmax(0,1fr))',
         gap:18,
@@ -285,7 +285,7 @@ export default function Learn(){
         />
       </div>
 
-      <div style={{
+      <div className="readiness-primary-grid" style={{
         display:'grid',
         gridTemplateColumns:'1.15fr .85fr',
         gap:18,
@@ -352,7 +352,7 @@ export default function Learn(){
         </div>
       </div>
 
-      <div style={{
+      <div className="readiness-insights-grid" style={{
         display:'grid',
         gridTemplateColumns:'repeat(3,minmax(0,1fr))',
         gap:18,
@@ -392,7 +392,7 @@ export default function Learn(){
         </div>
       </div>
 
-      <div style={{
+      <div className="readiness-secondary-grid" style={{
         display:'grid',
         gridTemplateColumns:'1fr 1fr',
         gap:18,
