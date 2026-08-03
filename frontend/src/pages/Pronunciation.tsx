@@ -3,10 +3,11 @@ import {
   Mic,
   RotateCcw,
   Snail,
+  Square,
   Volume2,
   Zap,
 } from 'lucide-react';
-import {useEffect, useMemo, useState} from 'react';
+import {useEffect, useMemo, useRef, useState} from 'react';
 import {api} from '../services/api';
 import {Project} from '../types';
 
@@ -65,7 +66,14 @@ export default function Pronunciation(){
   const [projects,setProjects]=useState<Project[]>([]);
   const [pid,setPid]=useState(0);
   const [phrase,setPhrase]=useState('Buenos días. Es un placer estar con ustedes.');
-  const [listening,setListening]=useState(false);
+  const [recording,setRecording]=useState(false);
+  const [processing,setProcessing]=useState(false);
+  const [recordingSeconds,setRecordingSeconds]=useState(0);
+  const [audioUrl,setAudioUrl]=useState('');
+  const mediaRecorderRef=useRef<MediaRecorder|null>(null);
+  const mediaStreamRef=useRef<MediaStream|null>(null);
+  const audioChunksRef=useRef<Blob[]>([]);
+  const recordingTimerRef=useRef<number|null>(null);
   const [result,setResult]=useState<Result|null>(null);
   const [error,setError]=useState('');
   const [rate,setRate]=useState(.82);
@@ -90,6 +98,19 @@ export default function Pronunciation(){
       setHistory([]);
     }
   },[pid]);
+
+  useEffect(()=>{
+    return ()=>{
+      if(recordingTimerRef.current){
+        window.clearInterval(recordingTimerRef.current);
+      }
+      mediaRecorderRef.current?.stop();
+      mediaStreamRef.current?.getTracks().forEach(track=>track.stop());
+      if(audioUrl){
+        URL.revokeObjectURL(audioUrl);
+      }
+    };
+  },[audioUrl]);
 
   const expectedWords=useMemo(()=>normalize(phrase),[phrase]);
   const transcriptWords=useMemo(()=>normalize(result?.transcript||''),[result]);
@@ -122,50 +143,238 @@ export default function Pronunciation(){
     localStorage.setItem(`pronunciation-history-${pid}`,JSON.stringify(next));
   }
 
-  function record(){
-    const SR=(window as any).SpeechRecognition||(window as any).webkitSpeechRecognition;
-    if(!SR){
-      setError('Seu navegador não oferece reconhecimento de voz. Use Google Chrome ou Microsoft Edge.');
+  function stopTracks(){
+    mediaStreamRef.current?.getTracks().forEach(track=>track.stop());
+    mediaStreamRef.current=null;
+  }
+
+  function clearRecordingTimer(){
+    if(recordingTimerRef.current){
+      window.clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current=null;
+    }
+  }
+
+  function preferredMimeType(){
+    const options=[
+      'audio/webm;codecs=opus',
+      'audio/webm',
+      'audio/mp4',
+      'audio/ogg;codecs=opus',
+    ];
+
+    return options.find(type=>MediaRecorder.isTypeSupported(type))||'';
+  }
+
+  async function evaluateTranscript(transcript:string){
+    const response=await api.post('/pronunciation/evaluate',{
+      project_id:pid,
+      expected:phrase,
+      transcript,
+    });
+    setResult(response.data);
+    saveAttempt(response.data);
+  }
+
+  async function transcribeAndEvaluate(blob:Blob){
+    setProcessing(true);
+    setError('');
+
+    try{
+      const extension=blob.type.includes('mp4')
+        ? 'mp4'
+        : blob.type.includes('ogg')
+          ? 'ogg'
+          : 'webm';
+
+      const formData=new FormData();
+      formData.append(
+        'audio',
+        blob,
+        `pronuncia-${Date.now()}.${extension}`,
+      );
+
+      const transcription=await api.post(
+        '/pronunciation/transcribe',
+        formData,
+        {
+          headers:{'Content-Type':'multipart/form-data'},
+          timeout:120000,
+        },
+      );
+
+      const transcript=String(
+        transcription.data?.transcript||'',
+      ).trim();
+
+      if(!transcript){
+        throw new Error('Nenhuma fala foi reconhecida.');
+      }
+
+      await evaluateTranscript(transcript);
+    }catch(err:any){
+      setError(
+        err.response?.data?.detail
+        ||err.message
+        ||'Não foi possível transcrever o áudio.',
+      );
+    }finally{
+      setProcessing(false);
+    }
+  }
+
+  async function startRecording(){
+    if(
+      !navigator.mediaDevices?.getUserMedia
+      ||typeof MediaRecorder==='undefined'
+    ){
+      setError(
+        'Este navegador não oferece gravação de áudio compatível. '
+        +'Atualize o Chrome, Edge ou Safari.',
+      );
       return;
     }
 
     window.speechSynthesis.cancel();
-    const recognition=new SR();
-    recognition.lang='es-419';
-    recognition.interimResults=false;
-    recognition.continuous=false;
-    setListening(true);
     setError('');
+    setResult(null);
+    setRecordingSeconds(0);
 
-    recognition.onresult=async(event:any)=>{
-      const transcript=event.results[0][0].transcript;
-      try{
-        const response=await api.post('/pronunciation/evaluate',{
-          project_id:pid,
-          expected:phrase,
-          transcript,
+    if(audioUrl){
+      URL.revokeObjectURL(audioUrl);
+      setAudioUrl('');
+    }
+
+    try{
+      const stream=await navigator.mediaDevices.getUserMedia({
+        audio:{
+          echoCancellation:true,
+          noiseSuppression:true,
+          autoGainControl:true,
+        },
+      });
+
+      mediaStreamRef.current=stream;
+      audioChunksRef.current=[];
+
+      const mimeType=preferredMimeType();
+      const recorder=mimeType
+        ? new MediaRecorder(stream,{mimeType})
+        : new MediaRecorder(stream);
+
+      mediaRecorderRef.current=recorder;
+
+      recorder.ondataavailable=(event:BlobEvent)=>{
+        if(event.data.size>0){
+          audioChunksRef.current.push(event.data);
+        }
+      };
+
+      recorder.onerror=()=>{
+        clearRecordingTimer();
+        stopTracks();
+        setRecording(false);
+        setError('Ocorreu uma falha durante a gravação.');
+      };
+
+      recorder.onstop=async()=>{
+        clearRecordingTimer();
+        stopTracks();
+        setRecording(false);
+
+        const blob=new Blob(
+          audioChunksRef.current,
+          {type:recorder.mimeType||'audio/webm'},
+        );
+
+        if(blob.size<500){
+          setError(
+            'A gravação ficou muito curta. Fale por alguns segundos '
+            +'e tente novamente.',
+          );
+          return;
+        }
+
+        const url=URL.createObjectURL(blob);
+        setAudioUrl(url);
+        await transcribeAndEvaluate(blob);
+      };
+
+      recorder.start(250);
+      setRecording(true);
+
+      recordingTimerRef.current=window.setInterval(()=>{
+        setRecordingSeconds(previous=>{
+          const next=previous+1;
+          if(next>=45&&recorder.state==='recording'){
+            recorder.stop();
+          }
+          return next;
         });
-        setResult(response.data);
-        saveAttempt(response.data);
-      }catch(err:any){
-        setError(err.response?.data?.detail||'Falha ao avaliar a transcrição.');
-      }finally{
-        setListening(false);
-      }
-    };
+      },1000);
+    }catch(err:any){
+      clearRecordingTimer();
+      stopTracks();
+      setRecording(false);
 
-    recognition.onerror=(event:any)=>{
-      setListening(false);
-      setError(`Falha no microfone: ${event.error}`);
-    };
-    recognition.onend=()=>setListening(false);
-    recognition.start();
+      const code=String(err?.name||err?.message||'').toLowerCase();
+
+      if(
+        code.includes('notallowed')
+        ||code.includes('permission')
+        ||code.includes('denied')
+      ){
+        setError(
+          'O acesso ao microfone foi bloqueado. Permita o microfone '
+          +'nas configurações do navegador e recarregue a página.',
+        );
+      }else if(
+        code.includes('notfound')
+        ||code.includes('devicesnotfound')
+      ){
+        setError('Nenhum microfone foi encontrado neste dispositivo.');
+      }else if(code.includes('notreadable')){
+        setError(
+          'O microfone está sendo usado por outro aplicativo. '
+          +'Feche-o e tente novamente.',
+        );
+      }else{
+        setError(
+          'Não foi possível iniciar o microfone. '
+          +'Abra o site diretamente no Chrome, Edge ou Safari.',
+        );
+      }
+    }
   }
+
+  function stopRecording(){
+    const recorder=mediaRecorderRef.current;
+    if(recorder&&recorder.state==='recording'){
+      recorder.stop();
+    }
+  }
+
+  function record(){
+    if(recording){
+      stopRecording();
+      return;
+    }
+    void startRecording();
+  }
+
 
   function reset(){
     window.speechSynthesis.cancel();
+    if(recording){
+      mediaRecorderRef.current?.stop();
+    }
+    if(audioUrl){
+      URL.revokeObjectURL(audioUrl);
+    }
+    setAudioUrl('');
     setResult(null);
     setError('');
+    setRecordingSeconds(0);
   }
 
   const level=result?classification(result.score):null;
@@ -229,12 +438,12 @@ export default function Pronunciation(){
             <Volume2/>
           </button>
           <button
-            className={`record-btn ${listening?'recording':''}`}
+            className={`record-btn ${recording?'recording':''}`}
             onClick={record}
-            disabled={listening}
-            title="Gravar"
+            disabled={processing}
+            title={recording?'Parar gravação':'Gravar'}
           >
-            <Mic/>
+            {recording?<Square/>:<Mic/>}
           </button>
           <button className="round secondary" onClick={reset} title="Nova tentativa">
             <RotateCcw/>
@@ -242,8 +451,22 @@ export default function Pronunciation(){
         </div>
 
         <div className="record-label">
-          {listening?'Ouvindo... fale agora':'Toque no microfone e repita a frase'}
+          {recording
+            ? `Gravando... ${recordingSeconds}s · toque para parar`
+            : processing
+              ? 'Transcrevendo e avaliando...'
+              : 'Toque no microfone e repita a frase'}
         </div>
+
+        {audioUrl&&
+          <div style={{margin:'16px auto 0',maxWidth:420}}>
+            <audio
+              controls
+              src={audioUrl}
+              style={{width:'100%'}}
+            />
+          </div>
+        }
 
         {error&&<p style={{color:'#b42318',fontWeight:700}}>{error}</p>}
 

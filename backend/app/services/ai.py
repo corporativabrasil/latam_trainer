@@ -123,6 +123,45 @@ class AIService:
             f"País de destino: {country}\n\nTexto a traduzir:\n{cleaned}",
         ).strip()
 
+    def transcribe_audio(self, file_path: str) -> str:
+        """Transcreve áudio em espanhol usando a API de transcrição da OpenAI."""
+        if not self.client:
+            raise AIUnavailableError(
+                "Configure OPENAI_API_KEY para transcrever o áudio."
+            )
+
+        model = getattr(
+            settings,
+            "openai_transcription_model",
+            "gpt-4o-mini-transcribe",
+        )
+
+        try:
+            with open(file_path, "rb") as audio_file:
+                response = self.client.audio.transcriptions.create(
+                    model=model,
+                    file=audio_file,
+                    language="es",
+                    response_format="json",
+                )
+        except Exception as exc:
+            raise RuntimeError(
+                f"Não foi possível transcrever o áudio: {exc}"
+            ) from exc
+
+        if isinstance(response, dict):
+            text = str(response.get("text", "")).strip()
+        else:
+            text = str(getattr(response, "text", "")).strip()
+
+        if not text:
+            raise RuntimeError(
+                "A transcrição foi concluída, mas nenhum texto foi reconhecido."
+            )
+
+        return text
+
+
     def translate(self, *, text: str, project, glossary: list, mode: str) -> str:
         glossary_text = "\n".join(
             f"- {g.source_term} = {g.target_term} ({g.notes})" for g in glossary

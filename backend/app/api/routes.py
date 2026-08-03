@@ -1,5 +1,6 @@
 import json
 import shutil
+import tempfile
 from pathlib import Path
 from uuid import uuid4
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -467,6 +468,103 @@ def dashboard(db: Session = Depends(get_db), _: User = Depends(current_user)):
         "approved": db.scalar(select(func.count(Translation.id)).where(Translation.approved.is_(True))) or 0,
         "study_sessions": db.scalar(select(func.count(StudySession.id))) or 0,
     }
+
+
+
+@router.post("/pronunciation/transcribe")
+async def pronunciation_transcribe(
+    audio: UploadFile = File(...),
+    _: User = Depends(current_user),
+):
+    allowed_content_types = {
+        "audio/webm",
+        "audio/ogg",
+        "audio/mp4",
+        "audio/mpeg",
+        "audio/wav",
+        "audio/x-wav",
+        "audio/aac",
+        "audio/m4a",
+        "video/webm",
+        "video/mp4",
+    }
+
+    content_type = (audio.content_type or "").lower()
+    if content_type and content_type not in allowed_content_types:
+        raise HTTPException(
+            400,
+            f"Formato de áudio não suportado: {content_type}",
+        )
+
+    extension_by_type = {
+        "audio/webm": ".webm",
+        "video/webm": ".webm",
+        "audio/ogg": ".ogg",
+        "audio/mp4": ".mp4",
+        "video/mp4": ".mp4",
+        "audio/m4a": ".m4a",
+        "audio/mpeg": ".mp3",
+        "audio/wav": ".wav",
+        "audio/x-wav": ".wav",
+        "audio/aac": ".aac",
+    }
+
+    original_suffix = Path(audio.filename or "").suffix.lower()
+    suffix = (
+        original_suffix
+        if original_suffix in {
+            ".webm", ".ogg", ".mp4", ".m4a", ".mp3", ".wav", ".aac"
+        }
+        else extension_by_type.get(content_type, ".webm")
+    )
+
+    max_bytes = 20 * 1024 * 1024
+    temp_path = ""
+
+    try:
+        with tempfile.NamedTemporaryFile(
+            delete=False,
+            suffix=suffix,
+        ) as temporary:
+            temp_path = temporary.name
+            total = 0
+
+            while True:
+                chunk = await audio.read(1024 * 1024)
+                if not chunk:
+                    break
+
+                total += len(chunk)
+                if total > max_bytes:
+                    raise HTTPException(
+                        413,
+                        "O áudio excede o limite de 20 MB.",
+                    )
+
+                temporary.write(chunk)
+
+        if not temp_path or Path(temp_path).stat().st_size == 0:
+            raise HTTPException(
+                400,
+                "Nenhum áudio foi recebido.",
+            )
+
+        try:
+            transcript = ai_service.transcribe_audio(temp_path)
+        except AIUnavailableError as exc:
+            raise HTTPException(503, str(exc)) from exc
+        except RuntimeError as exc:
+            raise HTTPException(502, str(exc)) from exc
+
+        return {
+            "transcript": transcript,
+            "content_type": content_type,
+        }
+    finally:
+        await audio.close()
+        if temp_path:
+            Path(temp_path).unlink(missing_ok=True)
+
 
 
 @router.post("/pronunciation/evaluate")
