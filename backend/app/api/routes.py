@@ -439,6 +439,48 @@ def simulation(payload: SimulationRequest, db: Session = Depends(get_db), _: Use
     return {"type": "classroom_turn", "session": _practice_session_payload(session)}
 
 
+
+@router.post("/projects/{project_id}/spanish-lab/generate")
+def generate_spanish_lab(project_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Projeto não encontrado")
+    context = _training_context(project_id, db)
+    if not context:
+        raise HTTPException(400, "O treinamento ainda não possui material, tradução ou manual processado.")
+    try:
+        content = ai_service.generate_spanish_lab(project=project, training_context=context)
+    except AIUnavailableError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    required = ("words", "terms", "phrases", "writing_exercises")
+    if not all(isinstance(content.get(key), list) for key in required):
+        raise HTTPException(502, "A IA não retornou a estrutura completa do laboratório.")
+    return {"project_id": project_id, "project_title": project.title, "country": project.country, **content}
+
+@router.post("/projects/{project_id}/spanish-lab/evaluate-writing")
+def evaluate_spanish_lab_writing(project_id: int, payload: dict, db: Session = Depends(get_db), _: User = Depends(current_user)):
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(404, "Projeto não encontrado")
+    prompt = str(payload.get("prompt", "")).strip()
+    answer = str(payload.get("answer", "")).strip()
+    reference_answer = str(payload.get("reference_answer", "")).strip()
+    if not prompt or not answer:
+        raise HTTPException(400, "Exercício e resposta são obrigatórios")
+    try:
+        evaluation = ai_service.evaluate_spanish_writing(project=project, prompt=prompt, answer=answer, reference_answer=reference_answer)
+    except AIUnavailableError as exc:
+        raise HTTPException(503, str(exc)) from exc
+    except RuntimeError as exc:
+        raise HTTPException(502, str(exc)) from exc
+    overall = max(0, min(100, int(evaluation.get("overall", 0) or 0)))
+    db.add(StudySession(project_id=project_id, session_type="escrita_espanhol", score=overall, notes=json.dumps(evaluation, ensure_ascii=False)[:4000]))
+    db.commit()
+    return evaluation
+
+
 @router.get("/projects/{project_id}/practice/latest", response_model=PracticeSessionOut | None)
 def latest_practice_session(project_id: int, db: Session = Depends(get_db), _: User = Depends(current_user)):
     item = db.scalar(

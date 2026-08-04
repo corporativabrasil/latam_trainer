@@ -50,6 +50,8 @@ export default function Studio() {
   const speechChunksRef = useRef<string[]>([]);
   const speechChunkIndexRef = useRef(0);
   const speechStoppedRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState('');
 
   useEffect(() => {
     api.get('/projects').then((response) => {
@@ -173,9 +175,12 @@ export default function Studio() {
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const input = event.currentTarget.elements.namedItem('file') as HTMLInputElement;
+    const input = fileInputRef.current;
 
-    if (!input.files?.[0] || !pid) return;
+    if (!input?.files?.[0] || !pid) {
+      setMessage('Selecione um arquivo antes de enviar.');
+      return;
+    }
 
     setBusy('upload');
     setMessage('');
@@ -188,6 +193,7 @@ export default function Studio() {
       setMaterials((previous) => [response.data, ...previous]);
       setMid(response.data.id);
       input.value = '';
+      setSelectedFileName('');
       setMessage('Material enviado e processado com sucesso.');
     } catch (error) {
       console.error('Erro ao enviar material:', error);
@@ -588,18 +594,33 @@ export default function Studio() {
 
         <form onSubmit={upload} className="upload-inline">
           <input
+            ref={fileInputRef}
             id="material-upload"
             name="file"
             type="file"
-            accept=".pdf,.docx,.pptx,.txt,.md"
+            accept=".pdf,.docx,.pptx,.txt,.md,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.presentationml.presentation,text/plain,text/markdown"
+            className="mobile-file-input"
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              setSelectedFileName(file?.name || '');
+              setMessage('');
+            }}
           />
-          <label htmlFor="material-upload">
-            <UploadCloud size={19} />
-            <span>Selecionar arquivo</span>
-          </label>
+
           <button
-            className="btn secondary"
+            type="button"
+            className="file-picker-button"
+            onClick={() => fileInputRef.current?.click()}
             disabled={!pid || busy === 'upload'}
+          >
+            <UploadCloud size={19} />
+            <span>{selectedFileName || 'Selecionar arquivo'}</span>
+          </button>
+
+          <button
+            type="submit"
+            className="btn secondary"
+            disabled={!pid || !selectedFileName || busy === 'upload'}
           >
             {busy === 'upload' ? (
               <Loader2 className="spin" />

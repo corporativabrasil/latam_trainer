@@ -8,6 +8,7 @@ import {
   Zap,
 } from 'lucide-react';
 import {useEffect, useMemo, useRef, useState} from 'react';
+import {useSearchParams} from 'react-router-dom';
 import {api} from '../services/api';
 import {Project} from '../types';
 
@@ -63,9 +64,12 @@ function classification(score:number){
 }
 
 export default function Pronunciation(){
+  const [searchParams]=useSearchParams();
   const [projects,setProjects]=useState<Project[]>([]);
-  const [pid,setPid]=useState(0);
-  const [phrase,setPhrase]=useState('Buenos días. Es un placer estar con ustedes.');
+  const initialProject=Number(searchParams.get('project')||0);
+  const initialText=searchParams.get('text')||'Buenos días. Es un placer estar con ustedes.';
+  const [pid,setPid]=useState(initialProject);
+  const [phrase,setPhrase]=useState(initialText);
   const [recording,setRecording]=useState(false);
   const [processing,setProcessing]=useState(false);
   const [recordingSeconds,setRecordingSeconds]=useState(0);
@@ -82,7 +86,7 @@ export default function Pronunciation(){
   useEffect(()=>{
     api.get('/projects').then(r=>{
       setProjects(r.data);
-      if(r.data[0])setPid(r.data[0].id);
+      if(!initialProject&&r.data[0])setPid(r.data[0].id);
     });
   },[]);
 

@@ -8,6 +8,7 @@ import {
   Mic2,
   PanelLeftClose,
   PanelLeftOpen,
+  PenLine,
   Sparkles,
   X,
 } from 'lucide-react';
@@ -21,6 +22,7 @@ const links=[
   ['/learn', 'Plano de preparação', Sparkles],
   ['/practice', 'Simulador IA', MessageCircleMore],
   ['/pronunciation', 'Pronúncia', Mic2],
+  ['/spanish-lab', 'Laboratório de espanhol', PenLine],
 ] as const;
 
 export default function Layout(){

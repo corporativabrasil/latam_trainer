@@ -177,6 +177,47 @@ class AIService:
             f"Treinamento: {project.title}\nPaís: {project.country}\nPúblico: {project.audience}\n\n{text}",
         )
 
+    def generate_spanish_lab(self, *, project, training_context: str) -> dict:
+        system = (
+            "Você é especialista em espanhol corporativo para instrutores brasileiros "
+            "que ministram treinamentos industriais na América Latina. Use SOMENTE o "
+            "conteúdo fornecido. Retorne SOMENTE JSON válido com words, terms, phrases "
+            "e writing_exercises. words deve conter 18 objetos com spanish, portuguese, "
+            "context, syllables e example. terms deve conter 12 objetos com source, "
+            "target e explanation. phrases deve conter 15 objetos com spanish, "
+            "portuguese, use_case e difficulty. writing_exercises deve conter 10 objetos "
+            "com type, prompt, reference_answer e difficulty. Tipos: copy, fill_blank, "
+            "translate e free_answer. Todo espanhol deve ser natural e adaptado ao país."
+        )
+        return self._call_json(
+            system=system,
+            user=(
+                f"Treinamento: {project.title}\nPaís: {project.country}\n"
+                f"Público: {project.audience}\nObjetivo: {project.objective}\n\n"
+                f"CONTEÚDO REAL:\n{training_context[:22000]}"
+            ),
+            expected_type=dict,
+        )
+
+    def evaluate_spanish_writing(self, *, project, prompt: str, answer: str, reference_answer: str) -> dict:
+        system = (
+            "Avalie uma resposta escrita em espanhol de um instrutor brasileiro. "
+            "Retorne SOMENTE JSON válido com overall, grammar, vocabulary, clarity, "
+            "naturalness, use_of_training_terms, feedback_pt, corrected_answer e "
+            "key_corrections. Notas de 0 a 100. feedback_pt e key_corrections em "
+            "português; corrected_answer em espanhol natural e corporativo."
+        )
+        return self._call_json(
+            system=system,
+            user=(
+                f"Treinamento: {project.title}\nPaís: {project.country}\n"
+                f"Exercício: {prompt}\nResposta de referência: {reference_answer}\n"
+                f"Resposta do instrutor: {answer}"
+            ),
+            expected_type=dict,
+        )
+
+
     def create_classroom(self, *, project, difficulty: str, classroom_size: int) -> list[dict]:
         system = (
             "Crie participantes realistas para uma sala de treinamento industrial latino-americana. "
