@@ -63,3 +63,135 @@
 }
 
 .spanish-lab-selector{display:grid;grid-template-columns:1.2fr .8fr;gap:24px;align-items:end;margin-bottom:18px}.spanish-lab-progress{display:grid;gap:7px}.spanish-lab-progress>span{font-size:12px;color:var(--muted);font-weight:700}.spanish-lab-progress>b{font:800 22px Manrope;color:var(--green)}.spanish-lab-tabs{display:flex;gap:8px;margin:18px 0;overflow-x:auto;padding-bottom:4px}.spanish-lab-tabs button{min-height:46px;border:1px solid var(--line);background:white;color:#45645f;border-radius:12px;padding:10px 16px;display:flex;align-items:center;gap:8px;font-weight:800;cursor:pointer;white-space:nowrap}.spanish-lab-tabs button.active{background:#0a7568;color:white;border-color:#0a7568}.spanish-lab-section{display:grid;gap:18px}.section-title{display:flex;justify-content:space-between;align-items:end;gap:18px}.section-title h2{margin-top:5px}.section-title>span{color:var(--muted)}.vocabulary-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}.vocabulary-card,.phrase-card{background:white;border:1px solid var(--line);border-radius:17px;padding:20px;box-shadow:var(--shadow);min-width:0}.vocabulary-card-head{display:flex;justify-content:space-between;gap:12px}.vocabulary-card-head h3{font-size:23px}.vocabulary-card-head small{color:var(--green)}.favorite-btn{width:38px;height:38px;border:0;border-radius:10px;background:#f2f7f6;color:#8aa09d;display:grid;place-items:center;cursor:pointer;flex-shrink:0}.favorite-btn.active{color:#d68b00;background:#fff5d9}.favorite-btn.active svg{fill:currentColor}.vocabulary-card>strong{display:block;margin:12px 0 4px;color:#0a7568}.vocabulary-card p{color:var(--muted);margin:0 0 12px}.example-box{background:#f2f8f6;border-left:3px solid #20aa96;border-radius:10px;padding:12px;line-height:1.55}.vocabulary-actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.technical-terms-list{display:grid;gap:10px}.technical-terms-list>div{display:grid;grid-template-columns:38px minmax(170px,.8fr) 1.4fr 42px;gap:12px;align-items:center;padding:12px;border:1px solid var(--line);border-radius:13px;background:#fbfdfc}.technical-terms-list>div>div{display:grid;gap:3px}.technical-terms-list span{color:var(--green);font-weight:800}.technical-terms-list p{margin:0;color:var(--muted);font-size:14px}.phrases-list{display:grid;gap:14px}.phrase-card h3{font-size:21px;margin:12px 0 4px}.phrase-card p{color:var(--green);font-weight:700;margin:0 0 5px}.phrase-card small{color:var(--muted)}.difficulty{display:inline-block;border-radius:99px;padding:5px 9px;font-size:10px;font-weight:800;text-transform:uppercase}.difficulty.iniciante{background:#e6f5ef;color:#087361}.difficulty.intermediário,.difficulty.intermediario{background:#fff4dd;color:#9a6500}.difficulty.avançado,.difficulty.avancado{background:#fde9e9;color:#a53a3a}.writing-layout,.review-layout{display:grid;grid-template-columns:1.25fr .75fr;gap:18px}.writing-card textarea{width:100%;min-height:260px;border:1px solid var(--line);border-radius:12px;padding:15px;resize:vertical;outline:0}.writing-head{display:flex;justify-content:space-between;align-items:start;gap:12px}.writing-prompt{background:#f2f8f6;border-radius:13px;padding:16px;margin:20px 0}.writing-prompt b{color:var(--green);text-transform:uppercase;font-size:11px;letter-spacing:.1em}.writing-prompt p{font-size:18px;margin:8px 0 0}.writing-actions{display:flex;justify-content:space-between;gap:10px;margin-top:14px}.writing-score{width:92px;height:92px;border:8px solid #20ad98;border-radius:50%;display:grid;place-items:center;align-content:center}.writing-score strong{font:800 27px Manrope}.writing-score span{font-size:11px}.score-chips{display:flex;flex-wrap:wrap;gap:7px;margin:15px 0}.score-chips span{padding:7px 9px;border-radius:99px;background:#edf6f4;font-size:12px}.flashcard{min-height:310px;margin:20px 0;border:2px dashed #bdd8d3;border-radius:20px;display:grid;place-items:center;align-content:center;padding:30px;cursor:pointer;background:linear-gradient(145deg,#f8fcfb,#edf8f5)}.flashcard h2{font-size:34px}.flashcard h3{font-size:23px;max-width:700px;line-height:1.5}.flashcard small{color:var(--muted);letter-spacing:.12em;font-weight:800;margin-bottom:15px}.flashcard svg{width:44px;height:44px;color:#0a7568;margin-bottom:14px}.review-nav{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap}.review-summary h2{font-size:32px;margin:12px 0 0}.review-stats{display:grid;gap:10px;margin:20px 0}.review-stats span{display:flex;align-items:center;gap:8px;color:#45645f}@media(max-width:900px){.writing-layout,.review-layout{grid-template-columns:1fr}.technical-terms-list>div{grid-template-columns:38px 1fr 42px}.technical-terms-list p{grid-column:2/-1}}@media(max-width:800px){.spanish-lab-selector{grid-template-columns:1fr;gap:15px}.section-title{align-items:flex-start;flex-direction:column}.vocabulary-grid{grid-template-columns:1fr}.writing-actions{flex-direction:column}.writing-actions .btn{width:100%}.flashcard{min-height:260px;padding:20px}.flashcard h2{font-size:28px}}@media(max-width:480px){.technical-terms-list>div{grid-template-columns:34px 1fr 38px;padding:10px}.vocabulary-actions{display:grid;grid-template-columns:1fr}.vocabulary-actions .btn{width:100%}.review-nav .btn{flex:1}}
+
+/* =========================================================
+   CORREÇÃO DEFINITIVA — SIDEBAR DESKTOP X DRAWER MOBILE
+   Cole este bloco NO FINAL de frontend/src/styles.css
+   ========================================================= */
+
+/*
+  O breakpoint antigo de 800px pode ser acionado em notebooks com
+  escala elevada do Windows ou zoom do navegador. O drawer fica
+  restrito a celulares de até 640px.
+*/
+
+/* WEB / NOTEBOOK / TABLET HORIZONTAL */
+@media (min-width: 641px) {
+  body.mobile-nav-open {
+    overflow: auto !important;
+  }
+
+  .app-shell,
+  .app-shell.collapsed {
+    display: grid !important;
+    min-height: 100vh !important;
+  }
+
+  .app-shell {
+    grid-template-columns: 270px minmax(0, 1fr) !important;
+  }
+
+  .app-shell.collapsed {
+    grid-template-columns: 84px minmax(0, 1fr) !important;
+  }
+
+  .sidebar {
+    display: flex !important;
+    position: sticky !important;
+    inset: auto !important;
+    top: 0 !important;
+
+    width: 270px !important;
+    max-width: 270px !important;
+    height: 100vh !important;
+
+    transform: none !important;
+    visibility: visible !important;
+    opacity: 1 !important;
+
+    overflow-y: auto !important;
+    box-shadow: none !important;
+    z-index: 20 !important;
+  }
+
+  .app-shell.collapsed .sidebar {
+    width: 84px !important;
+    max-width: 84px !important;
+  }
+
+  .sidebar.mobile-open {
+    transform: none !important;
+  }
+
+  .mobile-overlay,
+  .mobile-close,
+  .mobile-menu {
+    display: none !important;
+  }
+
+  .workspace {
+    display: block !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .topbar {
+    width: 100% !important;
+  }
+
+  .content {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
+/* CELULAR */
+@media (max-width: 640px) {
+  body.mobile-nav-open {
+    overflow: hidden !important;
+  }
+
+  .app-shell,
+  .app-shell.collapsed {
+    display: block !important;
+  }
+
+  .sidebar {
+    display: flex !important;
+    position: fixed !important;
+    inset: 0 auto 0 0 !important;
+
+    width: min(86vw, 320px) !important;
+    max-width: 320px !important;
+    height: 100dvh !important;
+
+    transform: translateX(-105%) !important;
+    transition: transform .24s ease !important;
+
+    overflow-y: auto !important;
+    box-shadow: 18px 0 45px rgba(0, 25, 22, .28) !important;
+    z-index: 100 !important;
+  }
+
+  .sidebar.mobile-open {
+    transform: translateX(0) !important;
+  }
+
+  .mobile-overlay {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    z-index: 90 !important;
+  }
+
+  .mobile-close,
+  .mobile-menu {
+    display: grid !important;
+  }
+
+  .workspace {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+}
+
