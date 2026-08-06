@@ -43,26 +43,97 @@ type Session={
 export default function Practice(){
   const [projects,setProjects]=useState<Project[]>([]);
   const [pid,setPid]=useState(0);
-  const [difficulty,setDifficulty]=useState('intermediário');
+  const [difficulty,setDifficulty]=useState('intermediate');
   const [classroomSize,setClassroomSize]=useState(4);
   const [session,setSession]=useState<Session|null>(null);
   const [answer,setAnswer]=useState('');
   const [loading,setLoading]=useState(false);
   const [error,setError]=useState('');
 
-  useEffect(()=>{
-    api.get('/projects').then(r=>{
-      setProjects(r.data);
-      if(r.data[0])setPid(r.data[0].id);
-    });
-  },[]);
+  useEffect(() => {
+    let active = true;
 
-  useEffect(()=>{
-    if(!pid)return;
-    api.get(`/projects/${pid}/practice/latest`)
-      .then(r=>setSession(r.data||null))
-      .catch(()=>setSession(null));
-  },[pid]);
+    async function loadProjects() {
+      try {
+        setError('');
+
+        const response = await api.get('/projects');
+
+        const projectList: Project[] = Array.isArray(response.data)
+          ? response.data
+          : Array.isArray(response.data?.items)
+            ? response.data.items
+            : Array.isArray(response.data?.projects)
+              ? response.data.projects
+              : [];
+
+        if (!active) return;
+
+        setProjects(projectList);
+
+        if (projectList.length > 0) {
+          setPid(current => current || projectList[0].id);
+        } else {
+          setError(
+            'A API respondeu, mas nenhum treinamento foi encontrado.',
+          );
+        }
+      } catch (err: any) {
+        if (!active) return;
+
+        console.error('Erro ao carregar treinamentos:', err);
+
+        setProjects([]);
+
+        const detail = err.response?.data?.detail;
+
+        setError(
+          typeof detail === 'string'
+            ? detail
+            : 'Não foi possível carregar os treinamentos.',
+        );
+      }
+    }
+
+    void loadProjects();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!pid) {
+      setSession(null);
+      return;
+    }
+
+    let active = true;
+
+    async function loadLatestSession() {
+      try {
+        const response = await api.get(
+          `/projects/${pid}/practice/latest`,
+        );
+
+        if (active) {
+          setSession(response.data || null);
+        }
+      } catch (err) {
+        console.error('Erro ao carregar a última simulação:', err);
+
+        if (active) {
+          setSession(null);
+        }
+      }
+    }
+
+    void loadLatestSession();
+
+    return () => {
+      active = false;
+    };
+  }, [pid]);
 
   async function start(){
     setLoading(true);setError('');
@@ -75,10 +146,18 @@ export default function Practice(){
         session_id:null,
         action:'continue',
       });
-      setSession(r.data.session);
+      const nextSession = r.data?.session;
+
+      if (!nextSession) {
+        throw new Error(
+          'O backend respondeu sem retornar os dados da turma.',
+        );
+      }
+
+      setSession(nextSession);
       setAnswer('');
     }catch(e:any){
-      setError(e.response?.data?.detail||'Não foi possível iniciar a turma.');
+      const detail=e.response?.data?.detail;setError(typeof detail==='string'?detail:`Não foi possível iniciar a turma${e.response?.status?` (erro ${e.response.status})`:''}.`);
     }finally{setLoading(false)}
   }
 
@@ -94,10 +173,24 @@ export default function Practice(){
         session_id:session.id,
         action,
       });
-      setSession(r.data.session);
+      const nextSession = r.data?.session;
+
+      if (!nextSession) {
+        throw new Error(
+          'O backend respondeu sem retornar a continuação da simulação.',
+        );
+      }
+
+      setSession(nextSession);
       setAnswer('');
     }catch(e:any){
-      setError(e.response?.data?.detail||'Não foi possível continuar a simulação.');
+      const detail=e.response?.data?.detail;
+
+      setError(
+        typeof detail==='string'
+          ? detail
+          : e.message||'Não foi possível continuar a simulação.',
+      );
     }finally{setLoading(false)}
   }
 
@@ -120,13 +213,24 @@ export default function Practice(){
         <label>Treinamento</label>
         <select value={pid} onChange={e=>setPid(Number(e.target.value))}>
           <option value={0}>Selecione</option>
-          {projects.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}
+          {Array.isArray(projects) &&
+            projects.map(p=>
+              <option key={p.id} value={p.id}>
+                {p.title}
+              </option>
+            )
+          }
         </select>
       </div>
       <div className="field">
         <label>Dificuldade</label>
-        <select value={difficulty} onChange={e=>setDifficulty(e.target.value)}>
-          <option>iniciante</option><option>intermediário</option><option>avançado</option>
+        <select
+          value={difficulty}
+          onChange={e=>setDifficulty(e.target.value)}
+        >
+          <option value="beginner">iniciante</option>
+          <option value="intermediate">intermediário</option>
+          <option value="advanced">avançado</option>
         </select>
       </div>
       <div className="field">

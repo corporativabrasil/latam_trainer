@@ -114,14 +114,21 @@ class AIService:
         if not cleaned or not self._looks_portuguese(cleaned):
             return cleaned
 
-        return self._call(
-            (
-                "Traduza exclusivamente para espanhol latino-americano natural. "
-                "Não explique, não acrescente conteúdo e não use português. "
-                "Retorne somente o texto traduzido."
-            ),
-            f"País de destino: {country}\n\nTexto a traduzir:\n{cleaned}",
-        ).strip()
+        try:
+            translated = self._call(
+                (
+                    "Traduza exclusivamente para espanhol latino-americano natural. "
+                    "Não explique, não acrescente conteúdo e não use português. "
+                    "Retorne somente o texto traduzido."
+                ),
+                f"País de destino: {country}\n\nTexto a traduzir:\n{cleaned}",
+            ).strip()
+
+            return translated or cleaned
+        except Exception:
+            # Uma falha na tradução corretiva não deve interromper
+            # toda a simulação. Mantém o texto original.
+            return cleaned
 
     def transcribe_audio(self, file_path: str) -> str:
         """Transcreve áudio em espanhol usando a API de transcrição da OpenAI."""

@@ -269,6 +269,23 @@ def _participant_private_data(session: PracticeSession) -> str:
     )
 
 
+def _normalize_difficulty(value: str) -> str:
+    normalized = str(value or "").strip().lower()
+
+    mapping = {
+        "beginner": "iniciante",
+        "intermediate": "intermediário",
+        "advanced": "avançado",
+        "iniciante": "iniciante",
+        "intermediario": "intermediário",
+        "intermediário": "intermediário",
+        "avancado": "avançado",
+        "avançado": "avançado",
+    }
+
+    return mapping.get(normalized, "intermediário")
+
+
 @router.post("/simulation")
 def simulation(payload: SimulationRequest, db: Session = Depends(get_db), _: User = Depends(current_user)):
     project = db.get(Project, payload.project_id)
@@ -279,11 +296,13 @@ def simulation(payload: SimulationRequest, db: Session = Depends(get_db), _: Use
     if not context:
         raise HTTPException(400, "O treinamento ainda não possui conteúdo processado")
 
+    difficulty = _normalize_difficulty(payload.difficulty)
+
     if not payload.session_id:
         try:
             classroom = ai_service.create_classroom(
                 project=project,
-                difficulty=payload.difficulty,
+                difficulty=difficulty,
                 classroom_size=payload.classroom_size,
             )
         except (AIUnavailableError, RuntimeError) as exc:
@@ -293,7 +312,7 @@ def simulation(payload: SimulationRequest, db: Session = Depends(get_db), _: Use
         session = PracticeSession(
             project_id=project.id,
             participant_profile=f"Turma com {len(classroom)} participantes",
-            difficulty=payload.difficulty,
+            difficulty=difficulty,
             question="Simulação de sala iniciada",
             status="active",
         )
@@ -320,7 +339,7 @@ def simulation(payload: SimulationRequest, db: Session = Depends(get_db), _: Use
         try:
             opening = ai_service.classroom_turn(
                 project=project,
-                difficulty=payload.difficulty,
+                difficulty=difficulty,
                 training_context=context,
                 participants_json=_participant_private_data(session),
                 conversation="A sessão acabou de começar.",
@@ -330,18 +349,33 @@ def simulation(payload: SimulationRequest, db: Session = Depends(get_db), _: Use
         except (AIUnavailableError, RuntimeError) as exc:
             db.rollback()
             raise HTTPException(502, str(exc)) from exc
-        speaker = str(opening.get("speaker_name", session.participants[0].name))
-        reply = str(opening.get("participant_reply", "")).strip()
-
-        db.add(
-            PracticeMessage(
+        replies = opening.get("replies", [])
+        if not isinstance(replies, list):
+            replies = []
+        if not replies:
+            legacy_reply = str(opening.get("participant_reply", "")).strip()
+            if legacy_reply:
+                replies = [{
+                    "speaker_name": str(opening.get("speaker_name", session.participants[0].name if session.participants else "Participante")),
+                    "participant_reply": legacy_reply,
+                    "reaction_type": "question",
+                    "emotion": "neutral",
+                }]
+        if not replies:
+            db.rollback()
+            raise HTTPException(502, "A IA criou a turma, mas não retornou a pergunta inicial.")
+        for item in replies[:3]:
+            reply = str(item.get("participant_reply", "")).strip()
+            if not reply:
+                continue
+            speaker = str(item.get("speaker_name", "Participante"))
+            db.add(PracticeMessage(
                 session_id=session.id,
                 role="participant",
                 content=reply,
-                message_type="question",
-                metadata_json=json.dumps({"speaker_name": speaker}, ensure_ascii=False),
-            )
-        )
+                message_type=str(item.get("reaction_type", "question")),
+                metadata_json=json.dumps({"speaker_name": speaker, "emotion": str(item.get("emotion", "neutral"))}, ensure_ascii=False),
+            ))
         db.commit()
         db.refresh(session)
         return {"type": "classroom_started", "session": _practice_session_payload(session)}
@@ -365,15 +399,25 @@ def simulation(payload: SimulationRequest, db: Session = Depends(get_db), _: Use
     db.flush()
 
     finish = payload.action == "finish"
-    turn = ai_service.classroom_turn(
-        project=project,
-        difficulty=session.difficulty,
-        training_context=context,
-        participants_json=_participant_private_data(session),
-        conversation=_conversation(session),
-        instructor_answer=payload.user_answer.strip(),
-        finish=finish,
-    )
+    try:
+        turn = ai_service.classroom_turn(
+            project=project,
+            difficulty=session.difficulty,
+            training_context=context,
+            participants_json=_participant_private_data(session),
+            conversation=_conversation(session),
+            instructor_answer=payload.user_answer.strip(),
+            finish=finish,
+        )
+    except (AIUnavailableError, RuntimeError) as exc:
+        db.rollback()
+        raise HTTPException(502, str(exc)) from exc
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            500,
+            f"Falha inesperada ao continuar a simulação: {exc}",
+        ) from exc
 
     hidden = turn.get("hidden_evaluation", {})
     db.add(
@@ -386,18 +430,25 @@ def simulation(payload: SimulationRequest, db: Session = Depends(get_db), _: Use
         )
     )
 
-    reply = str(turn.get("participant_reply", "")).strip()
-    speaker = str(turn.get("speaker_name", "Participante"))
-    if reply:
-        db.add(
-            PracticeMessage(
-                session_id=session.id,
-                role="participant",
-                content=reply,
-                message_type="closing" if finish else str(turn.get("reaction_type", "follow_up")),
-                metadata_json=json.dumps({"speaker_name": speaker}, ensure_ascii=False),
-            )
-        )
+    replies = turn.get("replies", [])
+    if not isinstance(replies, list):
+        replies = []
+    if not replies:
+        legacy_reply = str(turn.get("participant_reply", "")).strip()
+        if legacy_reply:
+            replies = [{"speaker_name": str(turn.get("speaker_name", "Participante")), "participant_reply": legacy_reply, "reaction_type": str(turn.get("reaction_type", "follow_up")), "emotion": "neutral"}]
+    for item in replies[:3]:
+        reply = str(item.get("participant_reply", "")).strip()
+        if not reply:
+            continue
+        speaker = str(item.get("speaker_name", "Participante"))
+        db.add(PracticeMessage(
+            session_id=session.id,
+            role="participant",
+            content=reply,
+            message_type="closing" if finish else str(item.get("reaction_type", "follow_up")),
+            metadata_json=json.dumps({"speaker_name": speaker, "emotion": str(item.get("emotion", "neutral"))}, ensure_ascii=False),
+        ))
 
     if finish or not turn.get("continue_conversation", True):
         db.flush()
@@ -406,12 +457,22 @@ def simulation(payload: SimulationRequest, db: Session = Depends(get_db), _: Use
             for m in session.messages
             if m.message_type == "hidden_evaluation"
         ]
-        report = ai_service.final_report(
-            project=project,
-            participants_json=_participant_private_data(session),
-            conversation=_conversation(session),
-            evaluations_json=json.dumps(evaluations, ensure_ascii=False),
-        )
+        try:
+            report = ai_service.final_report(
+                project=project,
+                participants_json=_participant_private_data(session),
+                conversation=_conversation(session),
+                evaluations_json=json.dumps(evaluations, ensure_ascii=False),
+            )
+        except (AIUnavailableError, RuntimeError) as exc:
+            db.rollback()
+            raise HTTPException(502, str(exc)) from exc
+        except Exception as exc:
+            db.rollback()
+            raise HTTPException(
+                500,
+                f"Falha inesperada ao gerar o relatório final: {exc}",
+            ) from exc
         session.status = "finished"
         session.overall = int(report.get("overall", 0))
         session.scores_json = json.dumps(report.get("scores", {}), ensure_ascii=False)
