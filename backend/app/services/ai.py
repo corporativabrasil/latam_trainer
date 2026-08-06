@@ -123,11 +123,8 @@ class AIService:
                 ),
                 f"País de destino: {country}\n\nTexto a traduzir:\n{cleaned}",
             ).strip()
-
             return translated or cleaned
         except Exception:
-            # Uma falha na tradução corretiva não deve interromper
-            # toda a simulação. Mantém o texto original.
             return cleaned
 
     def transcribe_audio(self, file_path: str) -> str:
@@ -357,10 +354,17 @@ ENCERRAR: {str(finish).lower()}
         evaluations_json: str,
     ) -> dict:
         system = (
-            "Gere um relatório profissional final para um instrutor corporativo brasileiro que treinou em espanhol. "
-            "Retorne SOMENTE JSON válido com overall, scores, strengths, improvements, critical_moments, "
+            "Gere um relatório profissional final para um instrutor corporativo "
+            "brasileiro que treinou em espanhol. Retorne SOMENTE JSON válido com "
+            "overall, scores, strengths, improvements, critical_moments, "
             "best_moments, unanswered_questions, study_plan e coach_summary. "
-            "scores deve conter spanish, content, clarity, didactics, empathy, classroom_control, examples e engagement."
+            "overall deve ser obrigatoriamente um número inteiro de 0 a 100. "
+            "scores deve ser um objeto com spanish, content, clarity, didactics, "
+            "empathy, classroom_control, examples e engagement. Todos os valores "
+            "de scores devem ser números inteiros de 0 a 100. strengths, "
+            "improvements, critical_moments, best_moments, unanswered_questions "
+            "e study_plan devem ser listas de textos. coach_summary deve ser um "
+            "texto em português. Nunca coloque texto nos campos numéricos."
         )
         return self._call_json(
             system=system,
