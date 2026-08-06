@@ -1,4 +1,5 @@
 import json
+import re
 import shutil
 import tempfile
 from pathlib import Path
@@ -286,6 +287,37 @@ def _normalize_difficulty(value: str) -> str:
     return mapping.get(normalized, "intermediário")
 
 
+def _safe_score(value, default: int = 0) -> int:
+    try:
+        if isinstance(value, bool):
+            return default
+
+        if isinstance(value, (int, float)):
+            return max(0, min(100, round(value)))
+
+        text = str(value or "").strip()
+        if not text:
+            return default
+
+        match = re.search(r"\b(100|\d{1,2})\b", text)
+        if not match:
+            return default
+
+        return max(0, min(100, int(match.group(1))))
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_score_dict(value) -> dict:
+    if not isinstance(value, dict):
+        return {}
+
+    return {
+        str(key): _safe_score(score)
+        for key, score in value.items()
+    }
+
+
 @router.post("/simulation")
 def simulation(payload: SimulationRequest, db: Session = Depends(get_db), _: User = Depends(current_user)):
     project = db.get(Project, payload.project_id)
@@ -473,10 +505,41 @@ def simulation(payload: SimulationRequest, db: Session = Depends(get_db), _: Use
                 500,
                 f"Falha inesperada ao gerar o relatório final: {exc}",
             ) from exc
+        raw_scores = report.get("scores", {})
+        clean_scores = _safe_score_dict(raw_scores)
+
+        overall = _safe_score(report.get("overall"))
+
+        if overall == 0 and clean_scores:
+            valid_scores = [
+                score
+                for score in clean_scores.values()
+                if score > 0
+            ]
+            if valid_scores:
+                overall = round(
+                    sum(valid_scores) / len(valid_scores)
+                )
+
+        coach_summary = report.get("coach_summary")
+        if not isinstance(coach_summary, str) or not coach_summary.strip():
+            raw_overall = report.get("overall")
+            coach_summary = (
+                str(raw_overall).strip()
+                if isinstance(raw_overall, str)
+                else (
+                    "Simulação concluída. Consulte os indicadores "
+                    "e recomendações."
+                )
+            )
+
         session.status = "finished"
-        session.overall = int(report.get("overall", 0))
-        session.scores_json = json.dumps(report.get("scores", {}), ensure_ascii=False)
-        session.feedback = str(report.get("coach_summary", ""))
+        session.overall = overall
+        session.scores_json = json.dumps(
+            clean_scores,
+            ensure_ascii=False,
+        )
+        session.feedback = coach_summary
         db.add(
             PracticeMessage(
                 session_id=session.id,
@@ -536,7 +599,7 @@ def evaluate_spanish_lab_writing(project_id: int, payload: dict, db: Session = D
         raise HTTPException(503, str(exc)) from exc
     except RuntimeError as exc:
         raise HTTPException(502, str(exc)) from exc
-    overall = max(0, min(100, int(evaluation.get("overall", 0) or 0)))
+    overall = _safe_score(evaluation.get("overall"))
     db.add(StudySession(project_id=project_id, session_type="escrita_espanhol", score=overall, notes=json.dumps(evaluation, ensure_ascii=False)[:4000]))
     db.commit()
     return evaluation
