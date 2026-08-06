@@ -602,22 +602,28 @@ class SimulationService:
             )[:2].upper() or "VP"
 
             normalized.append({
-                "name": name,
-                "role": str(item.get("role", "Colaborador")),
+                "name": name[:60],
+                "role": str(
+                    item.get("role", "Colaborador")
+                ).strip()[:60],
                 "personality": str(
                     item.get("personality", "pragmático")
-                ),
-                "behavior": str(item.get("behavior", "")),
+                ).strip()[:60],
+                "behavior": str(
+                    item.get("behavior", "")
+                ).strip()[:60],
                 "hidden_objective": str(
                     item.get("hidden_objective", "")
-                ),
+                ).strip()[:60],
                 "expertise_level": str(
                     item.get("expertise_level", "intermediário")
-                ),
-                "emotion": str(item.get("emotion", "neutro")),
+                ).strip()[:60],
+                "emotion": str(
+                    item.get("emotion", "neutro")
+                ).strip()[:60],
                 "avatar_code": str(
                     item.get("avatar_code", initials)
-                )[:8],
+                ).strip()[:8],
             })
 
         return normalized
