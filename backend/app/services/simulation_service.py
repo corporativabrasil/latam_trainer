@@ -602,25 +602,31 @@ class SimulationService:
             )[:2].upper() or "VP"
 
             normalized.append({
-                "name": name[:60],
+                # Campos VARCHAR do banco remoto:
+                # usamos limite conservador de 40 caracteres.
+                "name": name[:40],
                 "role": str(
                     item.get("role", "Colaborador")
-                ).strip()[:60],
+                ).strip()[:40],
                 "personality": str(
                     item.get("personality", "pragmático")
-                ).strip()[:60],
+                ).strip()[:40],
+
+                # Estes campos são TEXT no PostgreSQL e podem
+                # manter descrições mais completas.
                 "behavior": str(
                     item.get("behavior", "")
-                ).strip()[:60],
+                ).strip()[:1000],
                 "hidden_objective": str(
                     item.get("hidden_objective", "")
-                ).strip()[:60],
+                ).strip()[:1000],
+
                 "expertise_level": str(
                     item.get("expertise_level", "intermediário")
-                ).strip()[:60],
+                ).strip()[:40],
                 "emotion": str(
                     item.get("emotion", "neutro")
-                ).strip()[:60],
+                ).strip()[:40],
                 "avatar_code": str(
                     item.get("avatar_code", initials)
                 ).strip()[:8],
