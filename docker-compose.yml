@@ -25,7 +25,10 @@ services:
         condition: service_healthy
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        NGINX_CONFIG: nginx.local.conf
     ports:
       - "5173:80"
     depends_on:
